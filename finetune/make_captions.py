@@ -94,7 +94,7 @@ def main(args):
 
     for (image_path, _), caption in zip(path_imgs, captions):
       with open(os.path.splitext(image_path)[0] + args.caption_extension, "wt", encoding='utf-8') as f:
-        f.write(caption + "\n")
+        f.write(args.suffix + ', ' + caption + "\n")
         if args.debug:
           print(image_path, caption)
 
@@ -152,6 +152,7 @@ if __name__ == '__main__':
   parser.add_argument("--min_length", type=int, default=5, help="min length of caption / captionの最小長")
   parser.add_argument('--seed', default=42, type=int, help='seed for reproducibility / 再現性を確保するための乱数seed')
   parser.add_argument("--debug", action="store_true", help="debug mode")
+  parser.add_argument("--suffix", required=False, help="add special tokens")
 
   args = parser.parse_args()
 
