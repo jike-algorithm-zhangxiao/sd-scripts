@@ -48,7 +48,7 @@ def merge_to_sd_model(text_encoder, unet, models, ratios, merge_dtype):
     for name, module in root_module.named_modules():
       if module.__class__.__name__ in target_replace_modules:
         for child_name, child_module in module.named_modules():
-          if child_module.__class__.__name__ == "Linear" or (child_module.__class__.__name__ == "Conv2d" and child_module.kernel_size == (1, 1)):
+          if child_module.__class__.__name__ == "Linear" or child_module.__class__.__name__ == "Conv2d":
             lora_name = prefix + '.' + name + '.' + child_name
             lora_name = lora_name.replace('.', '_')
             name_to_module[lora_name] = child_module
@@ -80,13 +80,19 @@ def merge_to_sd_model(text_encoder, unet, models, ratios, merge_dtype):
 
         # W <- W + U * D
         weight = module.weight
+        # print(module_name, down_weight.size(), up_weight.size())
         if len(weight.size()) == 2:
           # linear
           weight = weight + ratio * (up_weight @ down_weight) * scale
-        else:
-          # conv2d
+        elif down_weight.size()[2:4] == (1, 1):
+          # conv2d 1x1
           weight = weight + ratio * (up_weight.squeeze(3).squeeze(2) @ down_weight.squeeze(3).squeeze(2)
                                      ).unsqueeze(2).unsqueeze(3) * scale
+        else:
+          # conv2d 3x3
+          conved = torch.nn.functional.conv2d(down_weight.permute(1, 0, 2, 3), up_weight).permute(1, 0, 2, 3)
+          # print(conved.size(), weight.size(), module.stride, module.padding)
+          weight = weight + ratio * conved * scale
 
         module.weight = torch.nn.Parameter(weight)
 
@@ -123,7 +129,7 @@ def merge_lora_models(models, ratios, merge_dtype):
         alphas[lora_module_name] = alpha
         if lora_module_name not in base_alphas:
           base_alphas[lora_module_name] = alpha
-    
+
     print(f"dim: {list(set(dims.values()))}, alpha: {list(set(alphas.values()))}")
 
     # merge
@@ -145,7 +151,7 @@ def merge_lora_models(models, ratios, merge_dtype):
         merged_sd[key] = merged_sd[key] + lora_sd[key] * scale
       else:
         merged_sd[key] = lora_sd[key] * scale
-  
+
   # set alpha to sd
   for lora_module_name, alpha in base_alphas.items():
     key = lora_module_name + ".alpha"
@@ -191,7 +197,7 @@ def merge(args):
     save_to_file(args.save_to, state_dict, state_dict, save_dtype)
 
 
-if __name__ == '__main__':
+def setup_parser() -> argparse.ArgumentParser:
   parser = argparse.ArgumentParser()
   parser.add_argument("--v2", action='store_true',
                       help='load Stable Diffusion v2.x model / Stable Diffusion 2.xのモデルを読み込む')
@@ -207,6 +213,12 @@ if __name__ == '__main__':
                       help="LoRA models to merge: ckpt or safetensors file / マージするLoRAモデル、ckptまたはsafetensors")
   parser.add_argument("--ratios", type=float, nargs='*',
                       help="ratios for each model / それぞれのLoRAモデルの比率")
+
+  return parser
+
+
+if __name__ == '__main__':
+  parser = setup_parser()
 
   args = parser.parse_args()
   merge(args)

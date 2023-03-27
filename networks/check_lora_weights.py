@@ -21,12 +21,19 @@ def main(file):
 
   for key, value in values:
     value = value.to(torch.float32)
-    print(f"{key},{torch.mean(torch.abs(value))},{torch.min(torch.abs(value))}")
+    print(f"{key},{str(tuple(value.size())).replace(', ', '-')},{torch.mean(torch.abs(value))},{torch.min(torch.abs(value))}")
+
+
+def setup_parser() -> argparse.ArgumentParser:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("file", type=str, help="model file to check / 重みを確認するモデルファイル")
+
+  return parser
 
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  parser.add_argument("file", type=str, help="model file to check / 重みを確認するモデルファイル")
+  parser = setup_parser()
+
   args = parser.parse_args()
 
   main(args.file)
